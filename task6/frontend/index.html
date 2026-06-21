@@ -1,0 +1,232 @@
+cat > frontend/index.html << 'EOF'
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能家居控制中心</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            margin: 0;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: white; margin-bottom: 30px; font-size: 2rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        .card h2 { margin: 0 0 20px 0; color: #333; display: flex; align-items: center; gap: 10px; }
+        .control-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        label { font-weight: 500; color: #555; }
+        input[type="range"] { flex: 1; min-width: 150px; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #5a67d8; }
+        .value { font-weight: bold; color: #667eea; min-width: 40px; text-align: center; }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider-switch {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+        .slider-switch:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider-switch { background-color: #667eea; }
+        input:checked + .slider-switch:before { transform: translateX(26px); }
+        .log-box {
+            background: #1e1e2e;
+            color: #cdd6f4;
+            border-radius: 20px;
+            padding: 20px;
+            margin-top: 30px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-box div { border-bottom: 1px solid #313244; padding: 5px 0; }
+        .color-preview { width: 40px; height: 40px; border-radius: 8px; border: 2px solid #ddd; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🏠 智能家居控制中心</h1>
+    <div class="grid">
+        <!-- 风扇 -->
+        <div class="card">
+            <h2>🌀 风扇控制</h2>
+            <div class="control-row">
+                <span>开关</span>
+                <label class="switch">
+                    <input type="checkbox" id="fan-switch">
+                    <span class="slider-switch"></span>
+                </label>
+            </div>
+            <div class="control-row">
+                <span>风速</span>
+                <input type="range" id="fan-speed" min="0" max="100" step="1">
+                <span id="fan-speed-val" class="value">50%</span>
+            </div>
+        </div>
+
+        <!-- 灯光 -->
+        <div class="card">
+            <h2>💡 灯光控制</h2>
+            <div class="control-row">
+                <span>开关</span>
+                <label class="switch">
+                    <input type="checkbox" id="light-switch">
+                    <span class="slider-switch"></span>
+                </label>
+            </div>
+            <div class="control-row">
+                <span>亮度</span>
+                <input type="range" id="light-bright" min="0" max="100" step="1">
+                <span id="light-bright-val" class="value">80%</span>
+            </div>
+            <div class="control-row">
+                <span>颜色</span>
+                <input type="color" id="light-color" value="#ffffff">
+                <div id="color-preview" class="color-preview" style="background:#ffffff"></div>
+            </div>
+        </div>
+
+        <!-- 窗帘 -->
+        <div class="card">
+            <h2>🚪 窗帘控制</h2>
+            <div class="control-row">
+                <span>开度</span>
+                <input type="range" id="curtain-pos" min="0" max="100" step="1">
+                <span id="curtain-pos-val" class="value">0%</span>
+            </div>
+            <div class="control-row">
+                <button id="curtain-open">全开</button>
+                <button id="curtain-close">全关</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="log-box" id="log-box">
+        <div>✨ 系统已启动，等待操作...</div>
+    </div>
+</div>
+
+<script>
+    // 获取后端地址
+    const API_BASE = window.location.origin;
+    
+    function addLog(msg) {
+        const logBox = document.getElementById('log-box');
+        const div = document.createElement('div');
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logBox.insertBefore(div, logBox.firstChild);
+        if (logBox.children.length > 50) logBox.removeChild(logBox.lastChild);
+    }
+
+    async function sendRequest(url, data) {
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await resp.json();
+            if (result.status === 'success') {
+                addLog(`✅ ${data.device} -> ${data.action}: ${data.value}`);
+            } else {
+                addLog(`❌ 控制失败: ${data.device} ${data.action}`);
+            }
+        } catch(e) {
+            addLog(`❌ 网络错误: ${e.message}`);
+        }
+    }
+
+    async function loadStatus() {
+        try {
+            const resp = await fetch('/api/status');
+            const state = await resp.json();
+            document.getElementById('fan-switch').checked = state.fan.switch;
+            document.getElementById('fan-speed').value = state.fan.speed;
+            document.getElementById('fan-speed-val').innerText = state.fan.speed + '%';
+            document.getElementById('light-switch').checked = state.light.switch;
+            document.getElementById('light-bright').value = state.light.brightness;
+            document.getElementById('light-bright-val').innerText = state.light.brightness + '%';
+            document.getElementById('light-color').value = state.light.color;
+            document.getElementById('color-preview').style.backgroundColor = state.light.color;
+            document.getElementById('curtain-pos').value = state.curtain.position;
+            document.getElementById('curtain-pos-val').innerText = state.curtain.position + '%';
+            addLog('📡 已同步服务器状态');
+        } catch(e) {
+            addLog('⚠️ 无法连接服务器');
+        }
+    }
+
+    // 事件绑定
+    document.getElementById('fan-switch').onchange = (e) => sendRequest('/api/control', {device:'fan', action:'switch', value:e.target.checked});
+    document.getElementById('fan-speed').oninput = (e) => document.getElementById('fan-speed-val').innerText = e.target.value + '%';
+    document.getElementById('fan-speed').onchange = (e) => sendRequest('/api/control', {device:'fan', action:'speed', value:parseInt(e.target.value)});
+    
+    document.getElementById('light-switch').onchange = (e) => sendRequest('/api/control', {device:'light', action:'switch', value:e.target.checked});
+    document.getElementById('light-bright').oninput = (e) => document.getElementById('light-bright-val').innerText = e.target.value + '%';
+    document.getElementById('light-bright').onchange = (e) => sendRequest('/api/control', {device:'light', action:'brightness', value:parseInt(e.target.value)});
+    document.getElementById('light-color').onchange = (e) => {
+        document.getElementById('color-preview').style.backgroundColor = e.target.value;
+        sendRequest('/api/control', {device:'light', action:'color', value:e.target.value});
+    };
+    
+    document.getElementById('curtain-pos').oninput = (e) => document.getElementById('curtain-pos-val').innerText = e.target.value + '%';
+    document.getElementById('curtain-pos').onchange = (e) => sendRequest('/api/control', {device:'curtain', action:'position', value:parseInt(e.target.value)});
+    document.getElementById('curtain-open').onclick = () => {
+        document.getElementById('curtain-pos').value = 100;
+        document.getElementById('curtain-pos-val').innerText = '100%';
+        sendRequest('/api/control', {device:'curtain', action:'position', value:100});
+    };
+    document.getElementById('curtain-close').onclick = () => {
+        document.getElementById('curtain-pos').value = 0;
+        document.getElementById('curtain-pos-val').innerText = '0%';
+        sendRequest('/api/control', {device:'curtain', action:'position', value:0});
+    };
+
+    loadStatus();
+</script>
+</body>
+</html>
+EOF

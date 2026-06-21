@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>声源定位中心</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        .compass {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            border: 8px solid #3b82f6;
+            background: #1e293b;
+            transition: all 0.5s ease;
+        }
+        .needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 120px;
+            background: #ef4444;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 4px;
+        }
+        .needle::after {
+            content: '';
+            position: absolute;
+            top: -10px;
+            left: -8px;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 20px solid #ef4444;
+        }
+        .mark {
+            position: absolute;
+            color: #94a3b8;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+    <div class="max-w-md w-full text-center space-y-8">
+        <header>
+            <h1 class="text-3xl font-bold text-blue-400">声源定位系统</h1>
+            <p class="text-slate-400 mt-2">基于 GCC-PHAT + TDOA 算法</p>
+        </header>
+
+        <div class="flex justify-center">
+            <div class="compass shadow-2xl shadow-blue-500/20">
+                <!-- 刻度 -->
+                <div class="mark" style="top: 10px; left: 50%; transform: translateX(-50%);">北 (0°)</div>
+                <div class="mark" style="bottom: 10px; left: 50%; transform: translateX(-50%);">南 (180°)</div>
+                <div class="mark" style="right: 10px; top: 50%; transform: translateY(-50%);">东 (90°)</div>
+                <div class="mark" style="left: 10px; top: 50%; transform: translateY(-50%);">西 (270°)</div>
+                
+                <!-- 指针 -->
+                <div id="needle" class="needle"></div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-700">
+            <div class="text-sm text-slate-400 uppercase tracking-wider mb-1">当前检测方位角</div>
+            <div id="angle-display" class="text-5xl font-mono font-bold text-blue-500">---°</div>
+            <div id="status" class="mt-4 text-sm text-green-400">等待信号中...</div>
+        </div>
+
+        <div class="text-slate-500 text-xs">
+            提示：在麦克风阵列附近拍手以触发定位
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const needle = document.getElementById('needle');
+        const angleDisplay = document.getElementById('angle-display');
+        const status = document.getElementById('status');
+
+        socket.on('connect', () => {
+            console.log('已连接到服务器');
+            status.innerText = '已连接，请拍手尝试';
+        });
+
+        socket.on('direction_update', (data) => {
+            const angle = data.angle;
+            console.log('收到角度更新:', angle);
+            
+            // 更新指针旋转
+            needle.style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+            
+            // 更新文字显示
+            angleDisplay.innerText = `${angle}°`;
+            
+            // 触发状态高亮
+            status.innerText = '成功捕获声源！';
+            status.classList.remove('text-green-400');
+            status.classList.add('text-yellow-400');
+            
+            setTimeout(() => {
+                status.innerText = '等待信号中...';
+                status.classList.remove('text-yellow-400');
+                status.classList.add('text-green-400');
+            }, 2000);
+        });
+
+        socket.on('disconnect', () => {
+            status.innerText = '连接已断开';
+            status.classList.add('text-red-400');
+        });
+    </script>
+</body>
+</html>

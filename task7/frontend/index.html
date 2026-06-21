@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小爱同学语音助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        .mic-active { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 min-h-screen flex flex-col items-center justify-center text-white font-sans">
+
+    <div class="text-center space-y-8 p-8 max-w-md w-full">
+        <h1 class="text-4xl font-bold tracking-tight text-blue-400">语音交互系统</h1>
+        
+        <!-- 麦克风图标 -->
+        <div id="mic-container" class="relative w-48 h-48 mx-auto bg-slate-800 rounded-full flex items-center justify-center border-4 border-slate-700 transition-all duration-500">
+            <span id="mic-icon" class="text-6xl">🎙️</span>
+            <div id="mic-ring" class="absolute inset-0 rounded-full border-4 border-blue-500 opacity-0 transition-opacity duration-300"></div>
+        </div>
+
+        <!-- 状态文本 -->
+        <div class="space-y-4">
+            <p id="status-text" class="text-xl font-medium text-slate-300">正在等待唤醒词 "你好小爱"...</p>
+            <div id="recording-indicator" class="hidden flex items-center justify-center space-x-2">
+                <span class="flex h-3 w-3">
+                    <span class="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                <span class="text-red-400 font-bold uppercase tracking-widest">Recording</span>
+            </div>
+        </div>
+
+        <!-- 播放器 -->
+        <div id="player-container" class="hidden bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <p class="text-sm text-slate-400">最新录音 (5秒)</p>
+            <audio id="audio-player" controls class="w-full h-10 accent-blue-500"></audio>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const statusText = document.getElementById('status-text');
+        const micContainer = document.getElementById('mic-container');
+        const micRing = document.getElementById('mic-ring');
+        const recordingIndicator = document.getElementById('recording-indicator');
+        const playerContainer = document.getElementById('player-container');
+        const audioPlayer = document.getElementById('audio-player');
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('status_update', (data) => {
+            console.log('Status:', data);
+            
+            if (data.status === 'recording') {
+                // 进入录音状态
+                statusText.innerText = data.msg;
+                statusText.classList.add('text-blue-400');
+                micContainer.classList.add('mic-active', 'border-blue-500');
+                micRing.classList.remove('opacity-0');
+                recordingIndicator.classList.remove('hidden');
+                playerContainer.classList.add('hidden');
+            } else if (data.status === 'idle') {
+                // 恢复原样
+                statusText.innerText = '正在等待唤醒词 "你好小爱"...';
+                statusText.classList.remove('text-blue-400');
+                micContainer.classList.remove('mic-active', 'border-blue-500');
+                micRing.classList.add('opacity-0');
+                recordingIndicator.classList.add('hidden');
+                
+                if (data.file) {
+                    // 显示播放器并加载录音
+                    audioPlayer.src = data.file + '?t=' + new Date().getTime(); // 加时间戳防止缓存
+                    playerContainer.classList.remove('hidden');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
